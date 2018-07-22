@@ -21,11 +21,19 @@ class MatrixAttribute(BaseAttribute):
     def clamp(self, value, config):
         min_value = getattr(config, self.min_value_name)
         max_value = getattr(config, self.max_value_name)
+
         return np.clip(value, min_value, max_value)
 
     def init_value(self, config):
-        # return self.default.copy()
-        return np.identity(4)
+        v = np.random.rand(4, 4) - 0.5 # rand in range (-0.5, 0.5)
+
+        # Scales are in range. (0.1, 2.1)
+        v[0, 0] = (random()*2) + .1
+        v[1, 1] = (random()*2) + .1
+        v[2, 2] = (random()*2) + .1
+
+        v[3,3] = 1.0
+        return v
 
     def mutate_value(self, value, config):
         """ Mutate one value in the matrix.
@@ -33,11 +41,17 @@ class MatrixAttribute(BaseAttribute):
         mutate_rate = getattr(config, self.mutate_rate_name)
 
         r = random()
+
         if r < mutate_rate:
             mutate_power = getattr(config, self.mutate_power_name)
             i = randint(0, value.shape[0]-1)
             j = randint(0, value.shape[1]-1)
-            value[i, j] += gauss(0.0, mutate_power)
+
+            if random() < .25:
+                value[i, j] *= -1
+            else:
+                value[i, j] += gauss(0.0, mutate_power)
+
             return self.clamp(value, config)
 
         replace_rate = getattr(config, self.replace_rate_name)
@@ -48,20 +62,22 @@ class MatrixAttribute(BaseAttribute):
         return value
 
 class FormNodeGene(BaseGene):
-    __gene_attributes__ = []
+    __gene_attributes__ = [
+        StringAttribute('type', options=['union', 'intersection'], default='union')
+    ]
 
     def distance(self, other, config):
         return 0.0
 
 class FormConnectionGene(BaseGene):
     __gene_attributes__ = [ MatrixAttribute('transform', default=np.identity(4)),
-                            BoolAttribute('copy'),
+                            # BoolAttribute('copy'),
                             BoolAttribute('negate'),
                             BoolAttribute('enabled') ]
 
     def distance(self, other, config):
         d = np.linalg.norm(self.transform - other.transform)
-        d += self.copy != other.copy
+        # d += self.copy != other.copy
         d += self.negate != other.negate
         d += self.enabled != other.enabled
         return d * config.compatibility_weight_coefficient
